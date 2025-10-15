@@ -83,13 +83,13 @@ function switchTab(button, tabType) {
             const linkUrl = row.find('.new-link-input').val().trim();
             
             if (!linkUrl) {
-                showNotification('Please enter a valid URL', 'error');
+                showNotification(schemaLinkManager.strings.pleaseEnterUrl, 'error');
                 return;
             }
             
             // Simple URL validation
             if (!linkUrl.match(/^(https?:\/\/)/i)) {
-                showNotification('URL must start with http:// or https://', 'error');
+                showNotification(schemaLinkManager.strings.urlMustStartHttp, 'error');
                 return;
             }
             
@@ -104,7 +104,7 @@ function switchTab(button, tabType) {
             const linksText = row.find('.bulk-links-input').val().trim();
             
             if (!linksText) {
-                showNotification('Please enter at least one URL', 'error');
+                showNotification(schemaLinkManager.strings.pleaseEnterOneUrl, 'error');
                 return;
             }
             
@@ -112,7 +112,7 @@ function switchTab(button, tabType) {
             const links = linksText.split('\n').map(link => link.trim()).filter(link => link);
             
             if (links.length === 0) {
-                showNotification('Please enter at least one URL', 'error');
+                showNotification(schemaLinkManager.strings.pleaseEnterOneUrl, 'error');
                 return;
             }
             
@@ -120,17 +120,17 @@ function switchTab(button, tabType) {
             const validLinks = links.filter(link => link.match(/^(https?:\/\/)/i));
             
             if (validLinks.length === 0) {
-                showNotification('No valid URLs found. URLs must start with http:// or https://', 'error');
+                showNotification(schemaLinkManager.strings.noValidUrls, 'error');
                 return;
             }
             
             if (validLinks.length !== links.length) {
-                showNotification('Some URLs were invalid and will be skipped.', 'warning');
+                showNotification(schemaLinkManager.strings.someUrlsInvalid, 'warning');
             }
             
             // Disable button during operation
             const bulkAddButton = $(this);
-            bulkAddButton.prop('disabled', true).text('Adding...');
+            bulkAddButton.prop('disabled', true).text(schemaLinkManager.strings.adding);
             
             // Process links sequentially
             let processedCount = 0;
@@ -139,13 +139,13 @@ function switchTab(button, tabType) {
             function processNextLink(index) {
                 if (index >= validLinks.length) {
                     // All links processed
-                    bulkAddButton.prop('disabled', false).text('Add All');
+                    bulkAddButton.prop('disabled', false).text(schemaLinkManager.strings.addAll);
                     row.find('.bulk-links-input').val('');
                     
                     if (successCount > 0) {
-                        showNotification(`Added ${successCount} links successfully!`, 'success');
+                        showNotification(schemaLinkManager.strings.linksAddedSuccess.replace('%s', successCount), 'success');
                     } else {
-                        showNotification('No new links were added. They may already exist.', 'warning');
+                        showNotification(schemaLinkManager.strings.noNewLinksAdded, 'warning');
                     }
                     return;
                 }
@@ -211,7 +211,7 @@ function switchTab(button, tabType) {
                     link: linkUrl
                 },
                 beforeSend: function() {
-                    row.find('.add-link-button').prop('disabled', true).text('Adding...');
+                    row.find('.add-link-button').prop('disabled', true).text(schemaLinkManager.strings.adding);
                 },
                 success: function(response) {
                     if (response.success) {
@@ -231,7 +231,7 @@ function switchTab(button, tabType) {
                     showNotification(schemaLinkManager.strings.error, 'error');
                 },
                 complete: function() {
-                    row.find('.add-link-button').prop('disabled', false).text('Add');
+                    row.find('.add-link-button').prop('disabled', false).text(schemaLinkManager.strings.add);
                 }
             });
         }
@@ -314,7 +314,7 @@ function switchTab(button, tabType) {
                             row.find(`.column-${linkType}-links .schema-links-container`).html(
                                 $('<p>', {
                                     class: 'no-links',
-                                    text: linkType === 'significant' ? 'No significant links' : 'No related links'
+                                    text: linkType === 'significant' ? schemaLinkManager.strings.noSignificantLinks : schemaLinkManager.strings.noRelatedLinks
                                 })
                             );
                         }
@@ -395,7 +395,7 @@ function switchTab(button, tabType) {
             buttonsContainer.append(
                 $('<button>', {
                     'class': 'button button-primary',
-                    text: 'Yes',
+                    text: schemaLinkManager.strings.yes,
                     'click': function() {
                         dialog.removeClass('show');
                         setTimeout(function() {
@@ -410,7 +410,7 @@ function switchTab(button, tabType) {
             buttonsContainer.append(
                 $('<button>', {
                     'class': 'button',
-                    text: 'No',
+                    text: schemaLinkManager.strings.no,
                     'click': function() {
                         dialog.removeClass('show');
                         setTimeout(function() {
@@ -457,7 +457,7 @@ function switchTab(button, tabType) {
                             row.find('.column-significant-links .schema-links-container').html(
                                 $('<p>', {
                                     class: 'no-links',
-                                    text: 'No significant links'
+                                    text: schemaLinkManager.strings.noSignificantLinks
                                 })
                             );
                         }
@@ -467,7 +467,7 @@ function switchTab(button, tabType) {
                             row.find('.column-related-links .schema-links-container').html(
                                 $('<p>', {
                                     class: 'no-links',
-                                    text: 'No related links'
+                                    text: schemaLinkManager.strings.noRelatedLinks
                                 })
                             );
                         }

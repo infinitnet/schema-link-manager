@@ -1,2 +1,6 @@
 .aider*
 .DS_Store*
+vendor*
+composer.json
+composer.lock
+phpcs.xml.dist
