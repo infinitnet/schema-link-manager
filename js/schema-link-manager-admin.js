@@ -47,6 +47,22 @@ function switchTab(button, tabType) {
             }, 300);
         }, duration);
     }
+
+    /**
+     * Format a localized string with a single numeric placeholder.
+     *
+     * Uses wp.i18n.sprintf when available, otherwise falls back to %s replacement.
+     *
+     * @param {string} template
+     * @param {number} value
+     * @returns {string}
+     */
+    function formatCount(template, value) {
+        if (window.wp && wp.i18n && typeof wp.i18n.sprintf === 'function') {
+            return wp.i18n.sprintf(template, value);
+        }
+        return String(template).replace('%s', value);
+    }
     
     $(document).ready(function() {
         
@@ -143,7 +159,7 @@ function switchTab(button, tabType) {
                     row.find('.bulk-links-input').val('');
                     
                     if (successCount > 0) {
-                        showNotification(schemaLinkManager.strings.linksAddedSuccess.replace('%s', successCount), 'success');
+                        showNotification(formatCount(schemaLinkManager.strings.linksAddedSuccess, successCount), 'success');
                     } else {
                         showNotification(schemaLinkManager.strings.noNewLinksAdded, 'warning');
                     }

@@ -65,13 +65,13 @@ class Schema_Link_Manager_Admin {
 	}
 
 	/**
-	 * Add admin menu page.
+	 * Get the capability required to manage schema links.
 	 *
-	 * Creates a top-level admin menu page for managing schema links.
+	 * @since 1.2.1
 	 *
-	 * @since 1.0.0
+	 * @return string Capability name.
 	 */
-	public function add_admin_menu() {
+	private function get_required_capability() {
 		/**
 		 * Filters the capability required to access the admin page.
 		 *
@@ -82,7 +82,18 @@ class Schema_Link_Manager_Admin {
 		 *
 		 * @return {string} Filtered capability.
 		 */
-		$capability = apply_filters( 'schema_link_manager_admin_capability', 'manage_options' );
+		return apply_filters( 'schema_link_manager_admin_capability', 'manage_options' );
+	}
+
+	/**
+	 * Add admin menu page.
+	 *
+	 * Creates a top-level admin menu page for managing schema links.
+	 *
+	 * @since 1.0.0
+	 */
+	public function add_admin_menu() {
+		$capability = $this->get_required_capability();
 
 		add_menu_page(
 			__( 'Schema Link Manager', 'schema-link-manager' ),
@@ -200,11 +211,11 @@ class Schema_Link_Manager_Admin {
 		$current_page   = isset( $_GET['paged'] ) ? max( 1, intval( $_GET['paged'] ) ) : 1;
 		$posts_per_page = isset( $_GET['per_page'] ) ? max( 10, min( 100, intval( $_GET['per_page'] ) ) ) : 20;
 		$search_term    = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
-		$search_column  = isset( $_GET['search_column'] ) ? sanitize_key( $_GET['search_column'] ) : 'all';
-		$post_type      = isset( $_GET['post_type'] ) ? sanitize_key( $_GET['post_type'] ) : 'all';
-		$category       = isset( $_GET['category'] ) ? sanitize_key( $_GET['category'] ) : 'all';
-		$orderby        = isset( $_GET['orderby'] ) ? sanitize_key( $_GET['orderby'] ) : 'title';
-		$order          = isset( $_GET['order'] ) ? sanitize_key( $_GET['order'] ) : 'asc';
+		$search_column  = isset( $_GET['search_column'] ) ? sanitize_key( wp_unslash( $_GET['search_column'] ) ) : 'all';
+		$post_type      = isset( $_GET['post_type'] ) ? sanitize_key( wp_unslash( $_GET['post_type'] ) ) : 'all';
+		$category       = isset( $_GET['category'] ) ? sanitize_key( wp_unslash( $_GET['category'] ) ) : 'all';
+		$orderby        = isset( $_GET['orderby'] ) ? sanitize_key( wp_unslash( $_GET['orderby'] ) ) : 'title';
+		$order          = isset( $_GET['order'] ) ? sanitize_key( wp_unslash( $_GET['order'] ) ) : 'asc';
 
 		// Get available post types for filter.
 		$post_types = $this->get_available_post_types();
@@ -375,8 +386,8 @@ class Schema_Link_Manager_Admin {
 				'title'             => $post->post_title,
 				'url'               => get_permalink( $post->ID ),
 				'post_type'         => get_post_type_object( $post->post_type )->labels->singular_name,
-				'significant_links' => ! empty( $significant_links ) ? explode( "\n", $significant_links ) : array(),
-				'related_links'     => ! empty( $related_links ) ? explode( "\n", $related_links ) : array(),
+				'significant_links' => ! empty( $significant_links ) ? array_values( array_filter( array_map( 'trim', preg_split( '/\r\n|\r|\n/', $significant_links ) ) ) ) : array(),
+				'related_links'     => ! empty( $related_links ) ? array_values( array_filter( array_map( 'trim', preg_split( '/\r\n|\r|\n/', $related_links ) ) ) ) : array(),
 			);
 		}
 
@@ -397,7 +408,7 @@ class Schema_Link_Manager_Admin {
 		}
 
 		// Check permissions.
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( $this->get_required_capability() ) ) {
 			wp_send_json_error( __( 'Permission denied', 'schema-link-manager' ) );
 		}
 
@@ -405,15 +416,24 @@ class Schema_Link_Manager_Admin {
 		$post_id   = isset( $_POST['post_id'] ) ? intval( $_POST['post_id'] ) : 0;
 		$link_type = isset( $_POST['link_type'] ) ? sanitize_key( $_POST['link_type'] ) : '';
 		$action    = isset( $_POST['action_type'] ) ? sanitize_key( $_POST['action_type'] ) : '';
-		$link      = isset( $_POST['link'] ) ? esc_url_raw( wp_unslash( $_POST['link'] ) ) : '';
+		$link_raw  = isset( $_POST['link'] ) ? sanitize_text_field( wp_unslash( $_POST['link'] ) ) : '';
+		$link      = wp_http_validate_url( trim( $link_raw ) );
 
 		if ( ! $post_id || ! in_array( $link_type, array( 'significant', 'related' ), true ) || ! in_array( $action, array( 'add', 'remove' ), true ) ) {
 			wp_send_json_error( __( 'Invalid parameters', 'schema-link-manager' ) );
 		}
 
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_send_json_error( __( 'Permission denied', 'schema-link-manager' ) );
+		}
+
+		if ( empty( $link ) ) {
+			wp_send_json_error( __( 'Invalid URL', 'schema-link-manager' ) );
+		}
+
 		$meta_key      = 'significant' === $link_type ? 'schema_significant_links' : 'schema_related_links';
 		$current_links = get_post_meta( $post_id, $meta_key, true );
-		$links_array   = ! empty( $current_links ) ? explode( "\n", $current_links ) : array();
+		$links_array   = ! empty( $current_links ) ? array_values( array_filter( array_map( 'trim', preg_split( '/\r\n|\r|\n/', $current_links ) ) ) ) : array();
 
 		if ( 'add' === $action && ! empty( $link ) ) {
 			/**
@@ -509,7 +529,7 @@ class Schema_Link_Manager_Admin {
 		}
 
 		// Check permissions.
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( $this->get_required_capability() ) ) {
 			wp_send_json_error( __( 'Permission denied', 'schema-link-manager' ) );
 		}
 
@@ -519,6 +539,10 @@ class Schema_Link_Manager_Admin {
 
 		if ( ! $post_id || ! in_array( $link_type, array( 'significant', 'related', 'all' ), true ) ) {
 			wp_send_json_error( __( 'Invalid parameters', 'schema-link-manager' ) );
+		}
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_send_json_error( __( 'Permission denied', 'schema-link-manager' ) );
 		}
 
 		/**

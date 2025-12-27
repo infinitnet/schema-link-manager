@@ -172,7 +172,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 						<tr data-post-id="<?php echo esc_attr( $schema_link_manager_post['id'] ); ?>">
 							<td class="column-title">
 								<strong>
-									<a href="<?php echo esc_url( get_edit_post_link( $schema_link_manager_post['id'] ) ); ?>" target="_blank">
+									<a href="<?php echo esc_url( get_edit_post_link( $schema_link_manager_post['id'] ) ); ?>" target="_blank" rel="noopener noreferrer">
 										<?php echo esc_html( $schema_link_manager_post['title'] ); ?>
 									</a>
 								</strong>
@@ -181,7 +181,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 								<?php echo esc_html( $schema_link_manager_post['post_type'] ); ?>
 							</td>
 							<td class="column-url">
-								<a href="<?php echo esc_url( $schema_link_manager_post['url'] ); ?>" target="_blank">
+								<a href="<?php echo esc_url( $schema_link_manager_post['url'] ); ?>" target="_blank" rel="noopener noreferrer">
 									<?php echo esc_url( $schema_link_manager_post['url'] ); ?>
 								</a>
 							</td>

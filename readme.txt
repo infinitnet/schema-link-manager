@@ -1,10 +1,10 @@
 === Schema Link Manager ===
 Contributors: infinitnet
 Tags: schema, json-ld, seo, structured-data, schema-markup
-Requires at least: 5.0
-Tested up to: 6.4
+Requires at least: 6.0
+Tested up to: 6.9
 Requires PHP: 7.2
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -127,6 +127,11 @@ Yes! The plugin works with all public post types by default. You can also use th
 5. Schema output in page source showing significantLink and relatedLink
 
 == Changelog ==
+
+= 1.2.1 =
+* Fixed fallback JSON-LD injection (no script stripping, no double buffering)
+* Improved Gutenberg sidebar compatibility with newer WordPress versions
+* Aligned admin AJAX capability checks with the admin page capability filter
 
 = 1.2.0 =
 * Improved documentation and inline comments

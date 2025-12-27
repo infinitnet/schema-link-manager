@@ -5,7 +5,7 @@
  * Plugin Name: Schema Link Manager
  * Plugin URI: https://infinitnet.io/schema-link-manager/
  * Description: Adds and manages significant and related links to JSON-LD WebPage schema for improved SEO and semantic structure. Integrates with Rank Math, Yoast SEO, and other schema providers.
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: Infinitnet
  * Author URI: https://infinitnet.io/
  * License: GPLv2 or later
@@ -32,7 +32,7 @@ if ( ! defined( 'SCHEMA_LINK_MANAGER_VERSION' ) ) {
 	 *
 	 * @since 1.0.0
 	 */
-	define( 'SCHEMA_LINK_MANAGER_VERSION', '1.2.0' );
+	define( 'SCHEMA_LINK_MANAGER_VERSION', '1.2.1' );
 }
 
 if ( ! defined( 'SCHEMA_LINK_MANAGER_PLUGIN_FILE' ) ) {
@@ -75,6 +75,13 @@ require_once SCHEMA_LINK_MANAGER_PLUGIN_DIR . 'admin/class-schema-link-manager-a
  * @since 1.0.0
  */
 class Schema_Link_Manager {
+	/**
+	 * Whether the output buffer has started.
+	 *
+	 * @since 1.2.1
+	 * @var bool
+	 */
+	private $output_buffer_started = false;
 
 	/**
 	 * Constructor - Initialize the plugin.
@@ -128,9 +135,10 @@ class Schema_Link_Manager {
 
 		// If no supported SEO plugin is active, use the fallback method.
 		if ( ! $has_seo_plugin ) {
-			// Add our filter to various places where schema might be output.
-			add_action( 'wp_head', array( $this, 'inject_schema_links' ), 99 );
-			add_action( 'wp_footer', array( $this, 'inject_schema_links' ), 99 );
+			// Start an output buffer and inject links into any JSON-LD WebPage schema found.
+			add_action( 'template_redirect', array( $this, 'start_output_buffer' ), 0 );
+
+			// Also scan post content for inline JSON-LD (rare but possible).
 			add_filter( 'the_content', array( $this, 'process_content_for_schema' ), 99 );
 		}
 	}
@@ -181,9 +189,21 @@ class Schema_Link_Manager {
 	/**
 	 * Authorization callback for post meta
 	 *
-	 * @return bool Whether the user can edit posts
+	 * @param bool   $allowed Whether the user can add the post meta. Default false.
+	 * @param string $meta_key The meta key.
+	 * @param int    $post_id Post ID.
+	 * @param int    $user_id User ID.
+	 * @param string $cap Capability name.
+	 * @param array  $caps User capabilities.
+	 *
+	 * @return bool Whether the user can edit the post.
 	 */
-	public function meta_auth_callback() {
+	public function meta_auth_callback( $allowed, $meta_key, $post_id, $user_id, $cap, $caps ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found -- Signature must accept register_post_meta args.
+		unset( $allowed, $meta_key, $user_id, $cap, $caps );
+		if ( $post_id && current_user_can( 'edit_post', $post_id ) ) {
+			return true;
+		}
+
 		return current_user_can( 'edit_posts' );
 	}
 
@@ -195,7 +215,7 @@ class Schema_Link_Manager {
 		wp_enqueue_script(
 			'schema-link-manager',
 			SCHEMA_LINK_MANAGER_PLUGIN_URL . 'js/schema-link-manager.js',
-			array( 'wp-blocks', 'wp-element', 'wp-editor', 'wp-components', 'wp-data', 'wp-plugins', 'wp-i18n' ),
+			array( 'wp-element', 'wp-components', 'wp-data', 'wp-plugins', 'wp-i18n', 'wp-edit-post', 'wp-editor' ),
 			SCHEMA_LINK_MANAGER_VERSION,
 			true
 		);
@@ -213,6 +233,25 @@ class Schema_Link_Manager {
 	}
 
 	/**
+	 * Get the current post ID for schema injection.
+	 *
+	 * Prefer the queried object ID (stable for the request) over get_the_ID() which can
+	 * change within secondary loops.
+	 *
+	 * @since 1.2.1
+	 *
+	 * @return int Post ID or 0 when unavailable.
+	 */
+	private function get_current_post_id() {
+		$post_id = (int) get_queried_object_id();
+		if ( $post_id > 0 ) {
+			return $post_id;
+		}
+
+		return (int) get_the_ID();
+	}
+
+	/**
 	 * Process links from post meta.
 	 *
 	 * @param int    $post_id Post ID.
@@ -226,15 +265,20 @@ class Schema_Link_Manager {
 			return [];
 		}
 
-		$links = array_map( 'trim', explode( "\n", $links_text ) );
-		$links = array_filter(
-			$links,
-			function ( $link ) {
-				return ! empty( $link ) && filter_var( $link, FILTER_VALIDATE_URL );
-			}
-		);
+		$links = preg_split( '/\r\n|\r|\n/', $links_text );
+		$links = array_map( 'trim', $links );
 
-		$processed_links = array_values( array_map( 'esc_url_raw', $links ) );
+		$processed_links = array_values(
+			array_filter(
+				array_map(
+					function ( $link ) {
+						$validated = wp_http_validate_url( $link );
+						return $validated ? esc_url_raw( $validated ) : '';
+					},
+					$links
+				)
+			)
+		);
 
 		/**
 		 * Filters the processed links before they are added to schema.
@@ -255,10 +299,12 @@ class Schema_Link_Manager {
 	 * Add links to schema.
 	 *
 	 * @param array $data Schema data.
+	 * @param mixed $jsonld Unused Rank Math context arg.
 	 * @return array Modified schema data.
 	 */
-	public function add_links_to_schema( $data ) {
-		$post_id = get_the_ID();
+	public function add_links_to_schema( $data, $jsonld = null ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found -- Signature must accept Rank Math args.
+		unset( $jsonld );
+		$post_id = $this->get_current_post_id();
 		if ( ! $post_id ) {
 			return $data;
 		}
@@ -285,8 +331,14 @@ class Schema_Link_Manager {
 
 		// Process each entity in the schema.
 		foreach ( $data as $entity_id => $entity ) {
+			if ( ! isset( $entity['@type'] ) ) {
+				continue;
+			}
+
+			$types = is_array( $entity['@type'] ) ? $entity['@type'] : array( $entity['@type'] );
+
 			// If this is a WebPage entity, add links directly.
-			if ( isset( $entity['@type'] ) && 'WebPage' === $entity['@type'] ) {
+			if ( in_array( 'WebPage', $types, true ) ) {
 				if ( ! empty( $significant_links ) ) {
 					$data[ $entity_id ]['significantLink'] = $significant_links;
 				}
@@ -296,8 +348,14 @@ class Schema_Link_Manager {
 			}
 
 			// If this is an Article with a nested WebPage, add links to the WebPage.
-			if ( isset( $entity['@type'] ) && in_array( $entity['@type'], [ 'Article', 'BlogPosting', 'NewsArticle' ], true ) &&
-				isset( $entity['isPartOf'] ) && isset( $entity['isPartOf']['@type'] ) && 'WebPage' === $entity['isPartOf']['@type'] ) {
+			if ( array_intersect( array( 'Article', 'BlogPosting', 'NewsArticle' ), $types ) &&
+				isset( $entity['isPartOf'] ) && isset( $entity['isPartOf']['@type'] ) ) {
+
+				$is_part_of_types = is_array( $entity['isPartOf']['@type'] ) ? $entity['isPartOf']['@type'] : array( $entity['isPartOf']['@type'] );
+
+				if ( ! in_array( 'WebPage', $is_part_of_types, true ) ) {
+					continue;
+				}
 
 				if ( ! empty( $significant_links ) ) {
 					$data[ $entity_id ]['isPartOf']['significantLink'] = $significant_links;
@@ -331,7 +389,7 @@ class Schema_Link_Manager {
 	 * @return array Modified WebPage schema data.
 	 */
 	public function add_links_to_yoast_schema( $data ) {
-		$post_id = get_the_ID();
+		$post_id = $this->get_current_post_id();
 		if ( ! $post_id ) {
 			return $data;
 		}
@@ -386,10 +444,20 @@ class Schema_Link_Manager {
 	}
 
 	/**
-	 * Inject schema links directly.
+	 * Start an output buffer for fallback injection.
+	 *
+	 * @since 1.2.1
 	 */
-	public function inject_schema_links() {
-		$post_id = get_the_ID();
+	public function start_output_buffer() {
+		if ( $this->output_buffer_started ) {
+			return;
+		}
+
+		if ( is_admin() || wp_doing_ajax() || wp_is_json_request() || is_feed() || is_embed() ) {
+			return;
+		}
+
+		$post_id = $this->get_current_post_id();
 		if ( ! $post_id ) {
 			return;
 		}
@@ -401,25 +469,17 @@ class Schema_Link_Manager {
 			return;
 		}
 
-		// Start output buffering.
-		ob_start();
-
-		// Add named method callback for output buffer modification.
-		add_action( 'wp_footer', array( $this, 'output_buffer_callback' ), 999 );
+		$this->output_buffer_started = true;
+		ob_start( array( $this, 'inject_links_into_json_ld' ) );
 	}
 
 	/**
-	 * Output buffer callback to inject links into JSON-LD.
+	 * Back-compat alias for older hook usage.
 	 *
-	 * @since 1.1.8
+	 * @since 1.0.0
 	 */
-	public function output_buffer_callback() {
-		// Get current buffer.
-		$content = ob_get_contents();
-		// Clean the buffer.
-		ob_clean();
-		// Output modified content.
-		echo wp_kses_post( $this->inject_links_into_json_ld( $content ) );
+	public function inject_schema_links() {
+		$this->start_output_buffer();
 	}
 
 	/**
@@ -433,7 +493,7 @@ class Schema_Link_Manager {
 			return $html;
 		}
 
-		$post_id = get_the_ID();
+		$post_id = $this->get_current_post_id();
 		if ( ! $post_id ) {
 			return $html;
 		}
@@ -447,9 +507,10 @@ class Schema_Link_Manager {
 
 		// Use preg_replace_callback to find and modify JSON-LD scripts.
 		return preg_replace_callback(
-			'/<script type=["\']application\/ld\+json["\'].*?>(.*?)<\/script>/s',
+			'/(<script\b[^>]*type=["\']application\/ld\+json["\'][^>]*>)(.*?)<\/script>/is',
 			function ( $matches ) use ( $significant_links, $related_links ) {
-				$json = trim( $matches[1] );
+				$opening_tag = $matches[1];
+				$json        = trim( $matches[2] );
 
 				// Try to decode the JSON.
 				$data = json_decode( $json, true );
@@ -497,7 +558,7 @@ class Schema_Link_Manager {
 
 				// Only modify if we actually changed something.
 				if ( $modified ) {
-					return '<script type="application/ld+json">' . wp_json_encode( $data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . '</script>';
+					return $opening_tag . wp_json_encode( $data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . '</script>';
 				}
 
 				return $matches[0]; // Return original if no WebPage found.

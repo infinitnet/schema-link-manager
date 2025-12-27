@@ -1,6 +1,11 @@
 (function(wp) {
+    if (!wp || !wp.plugins || !wp.element || !wp.data || !wp.components || !wp.i18n) {
+        return;
+    }
+
     const { registerPlugin } = wp.plugins;
-    const { PluginSidebar, PluginSidebarMoreMenuItem } = wp.editor;
+    const editorUi = wp.editPost || wp.editor || {};
+    const { PluginSidebar, PluginSidebarMoreMenuItem } = editorUi;
     const { PanelBody, TextareaControl, RadioControl, Button, Notice } = wp.components;
     const { useSelect, useDispatch } = wp.data;
     const { useState, useEffect, createElement } = wp.element;
@@ -8,13 +13,12 @@
 
     const SchemaLinkerPanel = () => {
         // Get current values from post meta
-        const { significantLinks, relatedLinks, postType } = useSelect(select => {
+        const { significantLinks, relatedLinks } = useSelect(select => {
             const { getEditedPostAttribute } = select('core/editor');
             const meta = getEditedPostAttribute('meta') || {};
             return {
                 significantLinks: meta.schema_significant_links || '',
                 relatedLinks: meta.schema_related_links || '',
-                postType: getEditedPostAttribute('type')
             };
         }, []);
 
@@ -25,14 +29,6 @@
         const [linkType, setLinkType] = useState('significant');
         const [linksInput, setLinksInput] = useState('');
         const [notice, setNotice] = useState({ show: false, message: '', type: 'info' });
-
-        // Check if Rank Math is active
-        const isRankMathActive = useSelect(select => {
-            // Check for Rank Math schema global variable which would indicate the plugin is active
-            return typeof window.rankMath !== 'undefined' ||
-                   typeof window.rankMathSchema !== 'undefined' ||
-                   document.querySelector('meta[property="rank_math:version"]') !== null;
-        }, []);
 
         // Handle adding links
         const addLinks = () => {
@@ -69,20 +65,14 @@
                 });
             }
 
-            const sanitizedLinks = validLinks.join('\n');
             const metaKey = linkType === 'significant' ? 'schema_significant_links' : 'schema_related_links';
             const currentLinks = linkType === 'significant' ? significantLinks : relatedLinks;
             
             // Combine existing links with new ones, avoiding duplicates
-            let combinedLinksArray = [];
-            if (currentLinks) {
-                combinedLinksArray = [...new Set([
-                    ...currentLinks.split('\n'),
-                    ...validLinks
-                ])].filter(link => link.trim() !== '');
-            } else {
-                combinedLinksArray = validLinks;
-            }
+            const currentLinksArray = currentLinks
+                ? currentLinks.split('\n').map(link => link.trim()).filter(Boolean)
+                : [];
+            const combinedLinksArray = Array.from(new Set([...currentLinksArray, ...validLinks]));
             
             const combinedLinks = combinedLinksArray.join('\n');
             
@@ -111,18 +101,6 @@
                 return () => clearTimeout(timer);
             }
         }, [notice]);
-
-        if (!isRankMathActive) {
-            return createElement(
-                PanelBody,
-                {},
-                createElement(
-                    Notice,
-                    { status: "error", isDismissible: false },
-                    __('Rank Math SEO plugin is required for Schema Link Manager to work.', 'schema-link-manager')
-                )
-            );
-        }
 
         return createElement(
             PanelBody,
@@ -320,6 +298,10 @@
     };
 
     const SchemaLinkerSidebar = () => {
+        if (!PluginSidebar || !PluginSidebarMoreMenuItem) {
+            return null;
+        }
+
         return [
             createElement(
                 PluginSidebarMoreMenuItem,

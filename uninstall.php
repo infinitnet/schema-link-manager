@@ -27,27 +27,9 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
  */
 do_action( 'schema_link_manager_before_uninstall' );
 
-// Get all public post types that had meta registered.
-$schema_link_manager_post_types = get_post_types( array( 'public' => true ) );
-
-// Delete all schema link meta from all posts.
-foreach ( $schema_link_manager_post_types as $schema_link_manager_type ) {
-	// Get all posts of this type (including drafts, private, etc.).
-	$schema_link_manager_posts = get_posts(
-		array(
-			'post_type'      => $schema_link_manager_type,
-			'posts_per_page' => -1,
-			'post_status'    => 'any',
-			'fields'         => 'ids', // Only get IDs for performance.
-		)
-	);
-
-	// Delete schema link meta from each post.
-	foreach ( $schema_link_manager_posts as $schema_link_manager_post_id ) {
-		delete_post_meta( $schema_link_manager_post_id, 'schema_significant_links' );
-		delete_post_meta( $schema_link_manager_post_id, 'schema_related_links' );
-	}
-}
+// Delete all schema link meta entries from all posts.
+delete_post_meta_by_key( 'schema_significant_links' );
+delete_post_meta_by_key( 'schema_related_links' );
 
 /**
  * Fires after plugin uninstall cleanup.
