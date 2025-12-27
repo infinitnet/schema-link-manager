@@ -243,9 +243,18 @@ class Schema_Link_Manager {
 	 * @return int Post ID or 0 when unavailable.
 	 */
 	private function get_current_post_id() {
-		$post_id = (int) get_queried_object_id();
-		if ( $post_id > 0 ) {
-			return $post_id;
+		if ( in_the_loop() ) {
+			$post_id = (int) get_the_ID();
+			if ( $post_id > 0 ) {
+				return $post_id;
+			}
+		}
+
+		if ( is_singular() ) {
+			$post_id = (int) get_queried_object_id();
+			if ( $post_id > 0 ) {
+				return $post_id;
+			}
 		}
 
 		return (int) get_the_ID();
@@ -454,6 +463,10 @@ class Schema_Link_Manager {
 		}
 
 		if ( is_admin() || wp_doing_ajax() || wp_is_json_request() || is_feed() || is_embed() ) {
+			return;
+		}
+
+		if ( ! is_singular() ) {
 			return;
 		}
 
