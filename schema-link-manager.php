@@ -5,14 +5,14 @@
  * Plugin Name: Schema Link Manager
  * Plugin URI: https://infinitnet.io/schema-link-manager/
  * Description: Adds and manages significant and related links to JSON-LD WebPage schema for improved SEO and semantic structure. Integrates with Rank Math, Yoast SEO, and other schema providers.
- * Version: 1.2.1
+ * Version: 1.2.2
  * Author: Infinitnet
  * Author URI: https://infinitnet.io/
  * License: GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: schema-link-manager
  * Domain Path: /languages
- * Requires at least: 5.0
+ * Requires at least: 6.0
  * Requires PHP: 7.2
  *
  * @package Schema_Link_Manager
@@ -32,7 +32,7 @@ if ( ! defined( 'SCHEMA_LINK_MANAGER_VERSION' ) ) {
 	 *
 	 * @since 1.0.0
 	 */
-	define( 'SCHEMA_LINK_MANAGER_VERSION', '1.2.1' );
+	define( 'SCHEMA_LINK_MANAGER_VERSION', '1.2.2' );
 }
 
 if ( ! defined( 'SCHEMA_LINK_MANAGER_PLUGIN_FILE' ) ) {
@@ -211,6 +211,12 @@ class Schema_Link_Manager {
 	 * Enqueue assets for the block editor.
 	 */
 	public function enqueue_editor_assets() {
+		// The sidebar edits post meta, so skip the widgets and Customizer block editors,
+		// where a wp-editor dependency makes core raise a _doing_it_wrong notice.
+		if ( $this->is_widgets_or_customizer_editor() ) {
+			return;
+		}
+
 		// Enqueue JS.
 		wp_enqueue_script(
 			'schema-link-manager',
@@ -230,6 +236,25 @@ class Schema_Link_Manager {
 
 		// Add inline translations.
 		wp_set_script_translations( 'schema-link-manager', 'schema-link-manager' );
+	}
+
+	/**
+	 * Whether the current block editor is the widgets or Customizer editor.
+	 *
+	 * @since 1.2.2
+	 *
+	 * @return bool True on the widgets screen or in the Customizer.
+	 */
+	private function is_widgets_or_customizer_editor() {
+		global $pagenow;
+
+		if ( doing_action( 'customize_controls_enqueue_scripts' ) || 'customize.php' === $pagenow || 'widgets.php' === $pagenow ) {
+			return true;
+		}
+
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+
+		return $screen && in_array( $screen->id, array( 'widgets', 'customize' ), true );
 	}
 
 	/**

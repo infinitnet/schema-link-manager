@@ -4,7 +4,8 @@
     }
 
     const { registerPlugin } = wp.plugins;
-    const editorUi = wp.editPost || wp.editor || {};
+    // WordPress 6.6+ exposes the sidebar slots in wp.editor; wp.editPost still works there but logs a deprecation.
+    const editorUi = (wp.editor && wp.editor.PluginSidebar) ? wp.editor : (wp.editPost || {});
     const { PluginSidebar, PluginSidebarMoreMenuItem } = editorUi;
     const { PanelBody, TextareaControl, RadioControl, Button, Notice } = wp.components;
     const { useSelect, useDispatch } = wp.data;
@@ -108,7 +109,7 @@
                 title: __('Add Links to Schema', 'schema-link-manager'), 
                 initialOpen: true 
             },
-            [
+            ...[
                 notice.show && createElement(
                     Notice,
                     { 
@@ -150,7 +151,7 @@
                 createElement(
                     Button,
                     { 
-                        isPrimary: true, 
+                        variant: 'primary',
                         onClick: addLinks 
                     },
                     __('Add Links', 'schema-link-manager')
@@ -162,14 +163,14 @@
                 createElement(
                     'div',
                     { className: 'schema-links-header' },
-                    [
+                    ...[
                         createElement('h3', {}, __('Current Significant Links', 'schema-link-manager')),
                         significantLinks && significantLinks.split('\n').filter(link => link.trim()).length > 0 
                             ? createElement(
                                 Button,
                                 {
                                     isDestructive: true,
-                                    isSmall: true,
+                                    size: 'small',
                                     onClick: () => {
                                         if (confirm(__('Are you sure you want to remove all significant links?', 'schema-link-manager'))) {
                                             editPost({ meta: { schema_significant_links: '' } });
@@ -197,7 +198,7 @@
                             .map((link, index) => createElement(
                                 'li',
                                 { key: `significant-${index}`, className: 'schema-link-item' },
-                                [
+                                ...[
                                     createElement(
                                         'span',
                                         { className: 'schema-link-url' },
@@ -207,7 +208,7 @@
                                         Button,
                                         { 
                                             isDestructive: true,
-                                            isSmall: true,
+                                            size: 'small',
                                             onClick: () => {
                                                 const links = significantLinks.split('\n').filter(l => l.trim());
                                                 links.splice(index, 1);
@@ -230,14 +231,14 @@
                 createElement(
                     'div',
                     { className: 'schema-links-header' },
-                    [
+                    ...[
                         createElement('h3', {}, __('Current Related Links', 'schema-link-manager')),
                         relatedLinks && relatedLinks.split('\n').filter(link => link.trim()).length > 0 
                             ? createElement(
                                 Button,
                                 {
                                     isDestructive: true,
-                                    isSmall: true,
+                                    size: 'small',
                                     onClick: () => {
                                         if (confirm(__('Are you sure you want to remove all related links?', 'schema-link-manager'))) {
                                             editPost({ meta: { schema_related_links: '' } });
@@ -265,7 +266,7 @@
                             .map((link, index) => createElement(
                                 'li',
                                 { key: `related-${index}`, className: 'schema-link-item' },
-                                [
+                                ...[
                                     createElement(
                                         'span',
                                         { className: 'schema-link-url' },
@@ -275,7 +276,7 @@
                                         Button,
                                         { 
                                             isDestructive: true,
-                                            isSmall: true,
+                                            size: 'small',
                                             onClick: () => {
                                                 const links = relatedLinks.split('\n').filter(l => l.trim());
                                                 links.splice(index, 1);

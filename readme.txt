@@ -2,9 +2,9 @@
 Contributors: infinitnet
 Tags: schema, json-ld, seo, structured-data, schema-markup
 Requires at least: 6.0
-Tested up to: 6.9
+Tested up to: 7.2
 Requires PHP: 7.2
-Stable tag: 1.2.1
+Stable tag: 1.2.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -127,6 +127,13 @@ Yes! The plugin works with all public post types by default. You can also use th
 5. Schema output in page source showing significantLink and relatedLink
 
 == Changelog ==
+
+= 1.2.2 =
+* Tested with WordPress 7.2 and PHP 8.5
+* Editor sidebar uses wp.editor.PluginSidebar and falls back to wp.editPost on older WordPress
+* Editor script no longer loads on the widgets and Customizer block editors
+* Fixed a React missing key warning in the editor sidebar and replaced deprecated Button props
+* Plugin header Requires at least now matches readme.txt (6.0)
 
 = 1.2.1 =
 * Fixed fallback JSON-LD injection (no script stripping, no double buffering)
