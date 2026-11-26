@@ -1,0 +1,115 @@
+name: Package WordPress Plugin
+
+# Builds the installable ZIP and publishes GitHub Release v<version> when the
+# plugin header version has no tag yet. No tests run here; test locally before
+# bumping the version. Version source: the Version header in schema-link-manager.php.
+#
+# Push to main: publishes only when tag v<version> does not exist.
+# Manual run: always builds the ZIP as an Actions artifact; set "publish" to
+# create the Release for the current version when its tag is still missing.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Create the GitHub Release for the current version if tag v<version> does not exist
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: plugin-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Build release ZIP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Read version and check tag
+        id: version
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUBLISH_INPUT: ${{ inputs.publish }}
+        run: |
+          set -euo pipefail
+          version="$(python3 -I .github/scripts/build-plugin-zip.py version --main schema-link-manager.php --constant SCHEMA_LINK_MANAGER_VERSION)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v${version}" >/dev/null 2>&1; then
+            tag_exists=true
+          else
+            tag_exists=false
+          fi
+          build=false
+          publish=false
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            build=true
+            if [ "$PUBLISH_INPUT" = "true" ] && [ "$tag_exists" = "false" ]; then publish=true; fi
+          elif [ "$tag_exists" = "false" ]; then
+            build=true
+            publish=true
+          fi
+          {
+            echo "tag_exists=$tag_exists"
+            echo "build=$build"
+            echo "publish=$publish"
+          } >> "$GITHUB_OUTPUT"
+          echo "version=$version tag_exists=$tag_exists build=$build publish=$publish"
+
+      - name: Build and verify ZIP
+        if: steps.version.outputs.build == 'true'
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I .github/scripts/build-plugin-zip.py build \
+            --slug schema-link-manager \
+            --main schema-link-manager.php --constant SCHEMA_LINK_MANAGER_VERSION \
+            --include schema-link-manager.php \
+            --include uninstall.php \
+            --include readme.txt \
+            --include admin \
+            --include css \
+            --include js \
+            --include templates \
+            --out dist
+          test "$(python3 -I .github/scripts/build-plugin-zip.py version --main schema-link-manager.php)" = "${{ steps.version.outputs.version }}"
+
+      - name: Upload workflow artifact
+        if: steps.version.outputs.build == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: schema-link-manager-${{ steps.version.outputs.version }}
+          path: |
+            dist/schema-link-manager-${{ steps.version.outputs.version }}.zip
+            dist/schema-link-manager.zip
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.publish == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release create "v${VERSION}" \
+            "dist/schema-link-manager-${VERSION}.zip" \
+            "dist/schema-link-manager.zip" \
+            --target "$GITHUB_SHA" \
+            --title "Schema Link Manager ${VERSION}" \
+            --notes "Installable WordPress ZIP for Schema Link Manager ${VERSION} built from ${GITHUB_SHA}. Upload the ZIP under Plugins, Add New, Upload Plugin."
+
+      - name: Report skipped release
+        if: steps.version.outputs.publish != 'true'
+        run: echo "No Release created (tag v${{ steps.version.outputs.version }} exists or manual run without publish)."
